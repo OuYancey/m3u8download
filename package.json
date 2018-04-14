@@ -4,12 +4,16 @@
   "description": "Download file from m3u8 URL",
   "main": "./src/M3U8Downloader.js",
   "bin": {
-    "m3u8download": "m3u8download.js"
+    "m3u8download": "./bin/m3u8download.js"
   },
   "keywords": [
     "m3u8-download"
   ],
   "author": "ou.yancey",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OuYancey/m3u8download"
+  },
   "license": "MIT",
   "dependencies": {
     "axios": "^0.18.0",
