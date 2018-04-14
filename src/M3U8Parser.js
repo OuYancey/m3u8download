@@ -28,7 +28,7 @@ class M3U8Parser extends EventEmitter {
         this.emit(Events.DEBUG, `Got M3U8Text: ${this.text}`)
         this.emit(Events.READY)
       })
-      .catch(err => this.emit(Events.ERROR, err))
+      .catch(err => this.emit(Events.ERROR, err.message))
   }
 
   setName() {

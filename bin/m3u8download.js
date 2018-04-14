@@ -2,6 +2,9 @@
 
 const chalk = require('chalk')
 const commander = require('commander')
+const axios = require('axios')
+const SocksProxyAgent = require('socks-proxy-agent')
+
 const packageJson = require('../package.json')
 const Events = require('../src/Events')
 const M3U8Downloader = require('../src/M3U8Downloader')
@@ -17,7 +20,7 @@ function logErrorURL() {
   console.log(` ${chalk.cyan(program.name())} ${chalk.green('<url>')}`)
   console.log()
   console.log('For example:')
-  console.log(` ${chalk.cyan(program.name())} ${chalk.green('http://example.com/somepath/a.m3u8')}`)
+  console.log(` ${chalk.cyan(program.name())} ${chalk.green('http://example.com/somepath/some.m3u8')}`)
   console.log()
   console.log(
     `Run ${chalk.cyan(`${program.name()} --help`)} to see all options.`
@@ -33,6 +36,7 @@ const program = new commander.Command(packageJson.name)
   .action((url) => (m3u8URL = url))
   .option('-d, --dest <value>', 'Target file dest')
   .option('-r, --range <a>..<b>', "Range of the m3u8 segments, it's [a, b)", (val) => val.split('..').map(Number))
+  .option('-p, --proxy <value>', 'Proxy value, eg. socks5://127.0.0.1:1080')
   .option('--quiet', 'No infos')
   .option('--debug', 'Debug infos')
   .on('--help', logHelpInfo)
@@ -41,6 +45,11 @@ const program = new commander.Command(packageJson.name)
 if (typeof m3u8URL === 'undefined') {
   logErrorURL()
   process.exit(1)
+}
+
+if (program.proxy) {
+  axios.default.httpAgent = new SocksProxyAgent(program.proxy)
+  axios.default.httpsAgent = new SocksProxyAgent(program.proxy)
 }
 
 const downloader = new M3U8Downloader(m3u8URL, { range: program.range, dest: program.dest })

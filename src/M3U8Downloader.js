@@ -3,8 +3,9 @@ const http = require('http')
 const https = require('https')
 const EventEmitter = require('events')
 
-const fs = require('fs-extra')
 const axios = require('axios')
+const fs = require('fs-extra')
+const SocksProxyAgent = require('socks-proxy-agent')
 
 const Events = require('./Events')
 const M3U8Parser = require('./M3U8Parser')
