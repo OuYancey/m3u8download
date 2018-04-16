@@ -37,6 +37,7 @@ const program = new commander.Command(packageJson.name)
   .option('-d, --dest <value>', 'Target file dest')
   .option('-r, --range <a>..<b>', "Range of the m3u8 segments, it's [a, b)", (val) => val.split('..').map(Number))
   .option('-p, --proxy <value>', 'Proxy value, eg. socks5://127.0.0.1:1080')
+  .option('--append', 'Write stream flags was "a", append mode')
   .option('--quiet', 'No infos')
   .option('--debug', 'Debug infos')
   .on('--help', logHelpInfo)
@@ -52,7 +53,11 @@ if (program.proxy) {
   axios.default.httpsAgent = new SocksProxyAgent(program.proxy)
 }
 
-const downloader = new M3U8Downloader(m3u8URL, { range: program.range, dest: program.dest })
+const downloader = new M3U8Downloader(m3u8URL, { 
+  range: program.range, 
+  dest: program.dest,
+  append: program.append
+})
   .on(Events.DEBUG, (msg) => {
     if (!program.debug) return;
     console.log(chalk.blue(`[${new Date().toLocaleString()}] DEBUG -> `), msg)

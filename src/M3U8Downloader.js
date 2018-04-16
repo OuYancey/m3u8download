@@ -15,12 +15,14 @@ class M3U8Downloader extends EventEmitter {
     dest = '.',
     range = [0, Infinity],
     filename = '',
+    append = false,
   } = options) {
     super()
 
     this.url = url
     this.dest = dest
     this.range = range
+    this.append = append
     this.filename = filename
     this.filepath = ''
     this.pool = []
@@ -115,7 +117,10 @@ class M3U8Downloader extends EventEmitter {
   createFile() {
     this.filepath = path.resolve(this.dest, this.filename)
     fs.ensureFileSync(this.filepath)
-    this.writeStream = fs.createWriteStream(this.filepath, { autoclose: false })
+    this.writeStream = fs.createWriteStream(this.filepath, { 
+      autoclose: false,
+      flags: this.append ? 'a' : 'w'
+    })
     this.emit(Events.INFOS, `Filepath: ${this.filepath}`)
   }
 
