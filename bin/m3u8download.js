@@ -60,14 +60,19 @@ const downloader = new M3U8Downloader(m3u8URL, {
 })
   .on(Events.DEBUG, (msg) => {
     if (!program.debug) return;
-    console.log(chalk.blue(`[${new Date().toLocaleString()}] DEBUG -> `), msg)
+    process.stdout.write(`${chalk.blue(`[${new Date().toLocaleString()}] DEBUG ->`)} ${msg}\n`)
   })
-  .on(Events.INFOS, (err) => {
+  .on(Events.INFOS, (err, update) => {
     if (program.quiet) return;
-    console.log(chalk.green(`[${new Date().toLocaleString()}] INFOS -> `), err)
+    if (update) {
+      process.stdout.moveCursor(0, -1)
+      process.stdout.cursorTo(0)
+      process.stdout.clearLine(0)
+    }
+    process.stdout.write(`${chalk.green(`[${new Date().toLocaleString()}] INFOS ->`)} ${err}\n`)
   })
   .on(Events.ERROR, (err) => {
-    console.log(chalk.red(`[${new Date().toLocaleString()}] ERROR -> `), err)
+    process.stdout.write(`${chalk.red(`[${new Date().toLocaleString()}] ERROR ->`)} ${err}\n`)
     process.exitCode = 1
   })
 

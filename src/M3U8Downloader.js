@@ -25,6 +25,7 @@ class M3U8Downloader extends EventEmitter {
     this.append = append
     this.filename = filename
     this.filepath = ''
+
     this.pool = []
     this.parser = null
 
@@ -38,6 +39,15 @@ class M3U8Downloader extends EventEmitter {
     this.parser = this.initParser()
   }
 
+  to(len, unit = 'MB') {
+    const UNIT_MAP = {
+      'KB': 1024,
+      'MB': 1024 * 1024,
+      'GB': 1024 * 1024 * 1024
+    }
+    return len / UNIT_MAP[unit.toUpperCase()]
+  }
+ 
   initParser() {
     this.emit(Events.INFOS, `Get M3U8URL: ${this.url}`)
     return new M3U8Parser(this.url)
@@ -57,25 +67,30 @@ class M3U8Downloader extends EventEmitter {
   downloadSegment(segment) {
     const handleError = (errMessage) => {
       this.count.failure++
-      this.emit(Events.DEBUG, `Segment-${segment._index}: ${JSON.stringify(segment)}`)
-      this.emit(Events.ERROR, `Segment-${segment._index}: ${errMessage}`)
+      this.emit(Events.DEBUG, `${segmentInfo}: ${JSON.stringify(segment)}`)
+      this.emit(Events.ERROR, `${segmentInfo}: ${errMessage}`)
       this.emit(Events.SEGMENT_START)
     }
 
-    const handleEnd = () => {
-      this.count.success++
-      this.emit(Events.INFOS, `Segment-${segment._index}: Size - ${segmentLen} MB. Success! `)
-      this.emit(Events.SEGMENT_START)
-    }
+    const segmentInfo = `Segment-${segment._index}`
+    let segmentLen, chunkLen = 0, start = new Date()
 
-    let segmentLen
+    this.emit(Events.INFOS, `${segmentInfo}: Pending...`)
 
     return axios
       .get(segment.url, { responseType: 'stream' })
       .then(res => {
-        segmentLen = (parseInt(res.headers['content-length'], 10) / 1024 / 1024).toFixed(4)
-        res.data.on('data', chunk => this.writeStream.write(chunk))
-        res.data.on('end', handleEnd)
+        segmentLen = this.to(parseInt(res.headers['content-length'], 10)).toFixed(4)
+        res.data.on('data', (chunk) => {
+          this.writeStream.write(chunk)
+          chunkLen += parseInt(chunk.length)
+          this.emit(Events.INFOS, `${segmentInfo}: ${this.to(chunkLen).toFixed(4)} / ${segmentLen} MB. `, true)
+        })
+        res.data.on('end', () => {
+          this.count.success++
+          this.emit(Events.INFOS, `${segmentInfo}: Size - ${segmentLen} MB. Success!`, true)
+          this.emit(Events.SEGMENT_START)
+        })
         res.data.on('error', err => handleError(err.message))
       })
       .catch(err => handleError(err.message))
