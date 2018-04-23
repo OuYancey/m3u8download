@@ -145,10 +145,16 @@ class M3U8Downloader extends EventEmitter {
   }
 
   correctRange() {
+    const segmentsLen = this.parser.segments.length
     let min = Math.min(this.range[0], this.range[1])
     let max = Math.max(this.range[0], this.range[1])
+    // if is percent
+    if (min >= 0 && min <= 1 && max >= 0 && max <= 1) {
+      min = Math.floor(segmentsLen * min)
+      max = Math.floor(segmentsLen * max)
+    }
     min = Math.max(min, 0)
-    max = Math.min(max, this.parser.segments.length)
+    max = Math.min(max, segmentsLen)
     this.range = [min, max]
     this.emit(Events.INFOS, `Download segment ranges: ${min} - ${max}`)
     this.emit(Events.INFOS, `Download segment length: ${max - min}`)

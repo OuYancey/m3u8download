@@ -27,6 +27,10 @@ function logErrorURL() {
   )
 }
 
+function getRange(val) {
+  return val.split('..').map((n, i) => (i === 1 && n === '') ? Infinity : Number(n))
+}
+
 let m3u8URL
 
 const program = new commander.Command(packageJson.name)
@@ -35,8 +39,8 @@ const program = new commander.Command(packageJson.name)
   .usage(`${chalk.green('<url>')} [options]`)
   .action((url) => (m3u8URL = url))
   .option('-d, --dest <value>', 'Target file dest')
-  .option('-r, --range <a>..<b>', "Range of the m3u8 segments, it's [a, b)", (val) => val.split('..').map(Number))
-  .option('-p, --proxy <value>', 'Proxy value, eg. socks5://127.0.0.1:1080')
+  .option('-r, --range <a>..<b>', "Range of the m3u8 segments, it's [a, b)", getRange)
+  .option('-p, --proxy [value]', 'Proxy value, eg. socks5://127.0.0.1:1080')
   .option('--append', 'Write stream flags was "a", append mode')
   .option('--quiet', 'No infos')
   .option('--debug', 'Debug infos')
@@ -49,8 +53,16 @@ if (typeof m3u8URL === 'undefined') {
 }
 
 if (program.proxy) {
-  axios.default.httpAgent = new SocksProxyAgent(program.proxy)
-  axios.default.httpsAgent = new SocksProxyAgent(program.proxy)
+  let httpProxy, httpsProxy
+  if (typeof program.proxy === 'boolean') {
+    httpProxy = process.env['http_proxy']
+    httpsProxy = process.env['https_proxy']
+  } else {
+    httpProxy = program.proxy
+    httpsProxy = program.proxy
+  }
+  axios.default.httpAgent = new SocksProxyAgent(httpProxy)
+  axios.default.httpsAgent = new SocksProxyAgent(httpsProxy)
 }
 
 const downloader = new M3U8Downloader(m3u8URL, { 
