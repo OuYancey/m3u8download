@@ -72,10 +72,12 @@ class M3U8Downloader extends EventEmitter {
       this.emit(Events.SEGMENT_START)
     }
 
-    const segmentInfo = `Segment-${segment._index}`
+    const segmentInfo = `Segment-${segment._index} (${this.range[0]} / ${this.range[1]})`
     let segmentLen, chunkLen = 0, start = new Date()
 
-    this.emit(Events.INFOS, `${segmentInfo}: Pending...`)
+    if (process.stdout.isTTY) {
+      this.emit(Events.INFOS, `${segmentInfo}: Pending...`)
+    }
 
     return axios
       .get(segment.url, { responseType: 'stream' })
@@ -84,11 +86,13 @@ class M3U8Downloader extends EventEmitter {
         res.data.on('data', (chunk) => {
           this.writeStream.write(chunk)
           chunkLen += parseInt(chunk.length)
+
+          if (!process.stdout.isTTY) return;
           this.emit(Events.INFOS, `${segmentInfo}: ${this.to(chunkLen).toFixed(4)} / ${segmentLen} MB. `, true)
         })
         res.data.on('end', () => {
           this.count.success++
-          this.emit(Events.INFOS, `${segmentInfo}: Size - ${segmentLen} MB. Success!`, true)
+          this.emit(Events.INFOS, `${segmentInfo}: Size - ${segmentLen} MB. Success!`, process.stdout.isTTY)
           this.emit(Events.SEGMENT_START)
         })
         res.data.on('error', err => handleError(err.message))
@@ -137,6 +141,7 @@ class M3U8Downloader extends EventEmitter {
       flags: this.append ? 'a' : 'w'
     })
     this.emit(Events.INFOS, `Filepath: ${this.filepath}`)
+    this.emit(Events.INFOS, `Write File Mode: ${this.append ? 'append' : 'write'}`)
   }
 
   setFilename() {
