@@ -15,28 +15,33 @@ class M3U8Downloader extends EventEmitter {
     dest = '.',
     range = [0, Infinity],
     filename = '',
-    append = false,
+    fileFlags = 'w',
   } = options) {
     super()
 
     this.url = url
     this.dest = dest
     this.range = range
-    this.append = append
+    this.fileFlags = fileFlags
     this.filename = filename
     this.filepath = ''
 
     this.pool = []
     this.parser = null
 
-    this.count = {
+    this.counter = {
       failure: 0,
       success: 0,
     }
   }
 
   start() {
-    this.parser = this.initParser()
+    this.emit(Events.START)
+    this.emit(Events.INFO, `Get M3U8URL: ${this.url}`)
+
+    this.parser = new M3U8Parser(this.url)
+      .on(Events.PARSER_READY, this.handleParserReady.bind(this))
+      .on(Events.PARSER_ERROR, err => this.emit(Events.ERROR, err))
   }
 
   to(len, unit = 'MB') {
@@ -47,15 +52,6 @@ class M3U8Downloader extends EventEmitter {
     }
     return len / UNIT_MAP[unit.toUpperCase()]
   }
- 
-  initParser() {
-    this.emit(Events.INFOS, `Get M3U8URL: ${this.url}`)
-    return new M3U8Parser(this.url)
-      .on(Events.READY, this.handleParserReady.bind(this))
-      .on(Events.INFOS, msg => this.emit(Events.INFOS, msg))
-      .on(Events.DEBUG, msg => this.emit(Events.DEBUG, msg))
-      .on(Events.ERROR, err => this.emit(Events.ERROR, err))
-  }
 
   handleParserReady() {
     this.correctRange()
@@ -65,95 +61,82 @@ class M3U8Downloader extends EventEmitter {
   }
 
   downloadSegment(segment) {
-    const handleError = (errMessage) => {
-      this.count.failure++
-      this.emit(Events.DEBUG, `${segmentInfo}: ${JSON.stringify(segment)}`)
-      this.emit(Events.ERROR, `${segmentInfo}: ${errMessage}`)
-      this.emit(Events.SEGMENT_START)
-    }
+    const segmentInfo = `Segment-${segment.index} (${segment.index}/${this.range[1]})`
+    this.emit(Events.TRACE, `${segmentInfo}: Pending...`)
 
-    const segmentInfo = `Segment-${segment._index} (${this.range[0]} / ${this.range[1]})`
-    let segmentLen, chunkLen = 0, start = new Date()
-
-    if (process.stdout.isTTY) {
-      this.emit(Events.INFOS, `${segmentInfo}: Pending...`)
-    }
+    let chunkLen = 0
 
     return axios
       .get(segment.url, { responseType: 'stream' })
       .then(res => {
-        segmentLen = this.to(parseInt(res.headers['content-length'], 10)).toFixed(4)
+        const segmentLen = this.to(parseInt(res.headers['content-length'], 10)).toFixed(4)
+
         res.data.on('data', (chunk) => {
           this.writeStream.write(chunk)
           chunkLen += parseInt(chunk.length)
-
-          if (!process.stdout.isTTY) return;
-          this.emit(Events.INFOS, `${segmentInfo}: ${this.to(chunkLen).toFixed(4)} / ${segmentLen} MB. `, true)
+          this.emit(Events.TRACE, `${segmentInfo}: ${this.to(chunkLen).toFixed(4)} / ${segmentLen} MB. `)
         })
+
         res.data.on('end', () => {
-          this.count.success++
-          this.emit(Events.INFOS, `${segmentInfo}: Size - ${segmentLen} MB. Success!`, process.stdout.isTTY)
-          this.emit(Events.SEGMENT_START)
+          this.counter.success++
+          this.emit(Events.INFO, `${segmentInfo}: Size - ${segmentLen} MB. Success!`)
+          this.emit(Events.DOWNLOAD_SEGMENT)
         })
-        res.data.on('error', err => handleError(err.message))
       })
-      .catch(err => handleError(err.message))
-  }
-
-  getSegmentsPool() {
-    const pool = []
-    const [from, to] = this.range
-    for (let i = from; i < to; i++) {
-      const segment = this.parser.segments[i]
-      segment._index = i
-      pool.push(segment)
-    }
-    return pool
+      .catch(err => {
+        this.counter.failure++
+        this.emit(Events.DEBUG, `${segmentInfo}: ${JSON.stringify(segment)}`)
+        this.emit(Events.ERROR, `${segmentInfo}: ${err.message}`)
+        this.emit(Events.DOWNLOAD_SEGMENT)
+      })
   }
 
   initDownload() {
-    this.pool = this.getSegmentsPool()
-    this.emit(Events.INFOS, '------> Start Downloading <------')
+    this.setSegmentsPool()
+    this.emit(Events.INFO, '------> Start Downloading <------')
 
-    this.on(Events.SEGMENT_START, (segment) => {
+    this.on(Events.DOWNLOAD_SEGMENT, (segment) => {
       if (this.pool.length <= 0) {
-        return this.emit(Events.SEGMENT_DONE)
+        this.writeStream.close()
+        this.emit(Events.INFO, '------> Finish Download <------')
+        this.emit(Events.DONE)
+      } else {
+        this.downloadSegment(this.pool.shift())
       }
-      this.downloadSegment(this.pool.shift())
     })
 
-    this.on(Events.SEGMENT_DONE, () => {
-      this.emit(Events.INFOS, '------> Finish Download <------')
-      this.emit(Events.INFOS, `Total - ${this.count.success + this.count.failure} `)
-      this.emit(Events.INFOS, `Success - ${this.count.success}`)
-      this.emit(Events.INFOS, `Failure - ${this.count.failure}`)
-      this.writeStream.close()
-    })
+    this.emit(Events.DOWNLOAD_SEGMENT)
+  }
 
-    this.emit(Events.SEGMENT_START)
+  setSegmentsPool() {
+    const [from, to] = this.range
+    for (let i = from; i < to; i++) {
+      this.pool.push(this.parser.segments[i])
+    }
   }
 
   createFile() {
     this.filepath = path.resolve(this.dest, this.filename)
+    this.emit(Events.INFO, `Filepath: ${this.filepath}`)
+
     fs.ensureFileSync(this.filepath)
-    this.writeStream = fs.createWriteStream(this.filepath, { 
+    this.writeStream = fs.createWriteStream(this.filepath, {
+      flags: this.fileFlags,
       autoclose: false,
-      flags: this.append ? 'a' : 'w'
     })
-    this.emit(Events.INFOS, `Filepath: ${this.filepath}`)
-    this.emit(Events.INFOS, `Write File Mode: ${this.append ? 'append' : 'write'}`)
+    this.emit(Events.INFO, `Write File Flags: ${this.fileFlags}`)
   }
 
   setFilename() {
     this.filename = this.filename ? this.filename : this.parser.name
-    this.emit(Events.INFOS, `Filename: ${this.filename}`)
+    this.emit(Events.INFO, `Filename: ${this.filename}`)
   }
 
   correctRange() {
     const segmentsLen = this.parser.segments.length
     let min = Math.min(this.range[0], this.range[1])
     let max = Math.max(this.range[0], this.range[1])
-    // if is percent
+    // if it's percent
     if (min >= 0 && min <= 1 && max >= 0 && max <= 1) {
       min = Math.floor(segmentsLen * min)
       max = Math.floor(segmentsLen * max)
@@ -161,8 +144,9 @@ class M3U8Downloader extends EventEmitter {
     min = Math.max(min, 0)
     max = Math.min(max, segmentsLen)
     this.range = [min, max]
-    this.emit(Events.INFOS, `Download segment ranges: ${min} - ${max}`)
-    this.emit(Events.INFOS, `Download segment length: ${max - min}`)
+
+    this.emit(Events.INFO, `Download segment ranges: ${min} - ${max}`)
+    this.emit(Events.INFO, `Download segment length: ${max - min}`)
   }
 }
 

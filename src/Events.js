@@ -1,7 +1,14 @@
 module.exports = {
-  INFOS: 'infos',
-  ERROR: 'error',
+  TRACE: 'trace',
   DEBUG: 'debug',
-  SEGMENT_START: 'segment start',
-  SEGMENT_DONE: 'segment done',
+  INFO: 'info',
+  ERROR: 'error',
+
+  START: 'start',
+  DONE: 'done',
+
+  PARSER_READY: 'parser-ready',
+  PARSER_ERROR: 'parser-error',
+
+  DOWNLOAD_SEGMENT: 'download-segment',
 }

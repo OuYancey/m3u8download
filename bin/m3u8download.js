@@ -65,8 +65,8 @@ if (program.proxy) {
   axios.default.httpsAgent = new SocksProxyAgent(httpsProxy)
 }
 
-const downloader = new M3U8Downloader(m3u8URL, { 
-  range: program.range, 
+const downloader = new M3U8Downloader(m3u8URL, {
+  range: program.range,
   dest: program.dest,
   append: program.append
 })
@@ -74,14 +74,14 @@ const downloader = new M3U8Downloader(m3u8URL, {
     if (!program.debug) return;
     process.stdout.write(`${chalk.blue(`[${new Date().toLocaleString()}] DEBUG ->`)} ${msg}\n`)
   })
-  .on(Events.INFOS, (err, update) => {
+  .on(Events.INFO, (err, update) => {
     if (program.quiet) return;
     if (update) {
       process.stdout.moveCursor(0, -1)
       process.stdout.cursorTo(0)
       process.stdout.clearLine(0)
     }
-    process.stdout.write(`${chalk.green(`[${new Date().toLocaleString()}] INFOS ->`)} ${err}\n`)
+    process.stdout.write(`${chalk.green(`[${new Date().toLocaleString()}] INFO ->`)} ${err}\n`)
   })
   .on(Events.ERROR, (err) => {
     process.stdout.write(`${chalk.red(`[${new Date().toLocaleString()}] ERROR ->`)} ${err}\n`)

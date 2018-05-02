@@ -9,26 +9,14 @@ class M3U8Parser extends EventEmitter {
   constructor(url) {
     super()
 
-    this.text = ''
     this.url = url
+
+    this.text = ''
     this.segments = []
     this.basename = path.basename(this.url)
-    this.name = this.setName()
 
+    this.setName()
     this.getM3U8Text()
-  }
-
-  getM3U8Text() {
-    return axios
-      .get(this.url)
-      .then(res => {
-        this.text = res.data
-        this.segments = this.parseText()
-        this.emit(Events.INFOS, `Total segments length: ${this.segments.length}`)
-        this.emit(Events.DEBUG, `Got M3U8Text: ${this.text}`)
-        this.emit(Events.READY)
-      })
-      .catch(err => this.emit(Events.ERROR, `Load M3U8 failure: ${err.message}`))
   }
 
   setName() {
@@ -43,28 +31,37 @@ class M3U8Parser extends EventEmitter {
     for (let i = 0; i < encodedURL.length; i = i + gap) {
       name += encodedURL[i]
     }
-    return name + '.ts'
+
+    this.name = name + '.ts'
+  }
+
+  getM3U8Text() {
+    return axios
+      .get(this.url)
+      .then(res => {
+        this.text = res.data
+        this.parseText()
+
+        this.emit(Events.PARSER_READY)
+      })
+      .catch(err => this.emit(Events.PARSER_ERROR, err))
   }
 
   parseText() {
     const EXTText = this.text.match(/#EXTINF([^]+?)(?=#EXT-X-ENDLIST)/)
     if (!EXTText || !EXTText.length) {
-      this.emit(Events.ERROR, `Not found M3U8 text in url: ${this.url}`)
-      this.emit(Events.DEBUG, `Found: \n ${this.text}`)
-      return
+      throw Error(`Not found valid M3U8 text in url: ${this.url}, only found: ${this.text}`)
     }
 
     const EXTINFs = EXTText[0].trim()
     const EXTINFList = EXTINFs.split(/\s+/)
 
-    const segments = []
     for (let i = 0; i < EXTINFList.length / 2; i++) {
-      segments.push(this.parseEXTItem(EXTINFList[2 * i], EXTINFList[2 * i + 1]))
+      this.segments.push(this.parseEXTItem(EXTINFList[2 * i], EXTINFList[2 * i + 1], i))
     }
-    return segments
   }
 
-  parseEXTItem(EXTTime, EXTPath) {
+  parseEXTItem(EXTTime, EXTPath, EXTIndex) {
     const time = Number(EXTTime.substring('#EXTINF:'.length, EXTTime.length - 1))
     const name = EXTPath.match(/\/?.*?.ts/g)[0].split('/').find(slice => slice.endsWith('.ts'))
 
@@ -72,6 +69,7 @@ class M3U8Parser extends EventEmitter {
       origin: `${EXTTime}\n${EXTPath}`,
       url: this.getEXTItemURL(EXTPath),
       filename: `${this.name}/${name}`,
+      index: EXTIndex,
       time,
     }
   }
